@@ -3,19 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Models\Produit;
+use App\Trait\apiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class ProduitController extends Controller
 {
+    use apiResponse;
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
         // $produits = Produit::where('');
-        $produits = Produit::with('album')->with('categorie')->orderBy('designation', 'asc')->get();
-        // dd($produits);
+        $produits = Produit::with('categorie','album')->orderBy('designation', 'asc')->get();
+        foreach ($produits as $key => $value) {
+            $produits[$key]->image = asset('storage/'. $produits[$key]->image);
+        }
         return $produits;
     }
 
@@ -29,22 +33,22 @@ class ProduitController extends Controller
             'categorie_id' => 'required',
             'quantite_stock' => 'required',
             'prix' => 'required',
-            'image' => 'required',
+            'image' => 'required | image',
         ]);
 
-        // $file = $request->file('image');
-        // $fileName = time().'.png';
-        // $produitImage = $file->storeAs('public/images/produits', $fileName);
+        $file = $request->file('image');
+        $fileName = time().'.png';
+        $produitImage = $file->storeAs('images/produits', $fileName, 'public');
 
         $newProduit = new Produit();
         $newProduit->designation = $request->designation;
         $newProduit->categorie_id = $request->categorie_id;
         $newProduit->quantite_stock = $request->quantite_stock;
         $newProduit->prix = $request->prix;
-        $newProduit->image = $request->image;
+        $newProduit->image = $produitImage;
         $newProduit->save();
 
-        return response(['success' => 'Enregistrement effectué avec succés']);
+        return $this->responseWithSuccess('Enregistrement effectue avec succes');
 
     }
 
@@ -53,10 +57,12 @@ class ProduitController extends Controller
      */
     public function show(string $id)
     {
-        $produit = Produit::where('id', $id)->first();
+        $produit = Produit::where('id', $id)->with('categorie','album')->first();
         if (!$produit) {
-            return response(['error' => 'Ce produit n\'existe pas']);
+            return $this->responseWithError('Ce produit n\'existe pas');
         }
+        
+        $produit->image = asset('storage/'. $produit->image);
         return $produit;
     }
 
@@ -70,32 +76,32 @@ class ProduitController extends Controller
             'categorie_id' => 'required',
             'quantite_stock' => 'required',
             'prix' => 'required',
-            'image' => 'required',
         ]);
         
         $produit = Produit::where('id', $id)->first();
 
         if (!$produit) {
-            return response(['error' => 'Ce produit n\'existe pas']);
+            return $this->responseWithError('Ce produit n\'existe pas');
         }
-
-        // if ($produit->image != null && Storage::exists($produit->image)) {
-        //     Storage::delete($produit->image);
-        // }
-
-
-        // $file = $request->file('image');
-        // $fileName = time().'.png';
-        // $produitImage = $file->storeAs('public/images/produits', $fileName);
+        $image = $request->file('image');
+        
+        if ($image != null) {
+            if ($produit->image != null && Storage::exists('public/'.$produit->image)) {
+                Storage::delete('public/'.$produit->image);
+            }
+            $file = $request->file('image');
+            $imgName = time().'.png';
+            $image = $file->storeAs('images/produits', $imgName, 'public');
+            $produit->image = $image;
+        }
 
         $produit->designation = $request->designation;
         $produit->categorie_id = $request->categorie_id;
         $produit->quantite_stock = $request->quantite_stock;
         $produit->prix = $request->prix;
-        $produit->image = $request->image;
         $produit->update();
 
-        return response(['success' => 'Modification effectué avec succés']);
+        return $this->responseWithSuccess('Modification effectue avec succes');
 
     }
 
@@ -106,9 +112,9 @@ class ProduitController extends Controller
     {
         $produit = Produit::where('id', $id)->first();
         if (!$produit) {
-            return response(['error' => 'Ce produit n\'existe pas']);
+            return $this->responseWithError('Ce produit n\'existe pas');
         }
         $produit->delete();
-        return response(['success' => 'Suppression effectué avec succés']);
+        return $this->responseWithSuccess('Suppression effectue avec succes');
     }
 }

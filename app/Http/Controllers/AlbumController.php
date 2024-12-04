@@ -3,17 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\Album;
+use App\Trait\apiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class AlbumController extends Controller
 {
+    use apiResponse;
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
         $albums = Album::with('produit')->get();
+        foreach ($albums as $key=>$value) {
+            $albums[$key]->image = asset('storage/' . $albums[$key]->image);
+        }
         return $albums;
     }
 
@@ -27,17 +32,17 @@ class AlbumController extends Controller
             'image' => 'required',
         ]);
 
-        // $file = $request->file('image');
-        // $fileName = time().'.png';
-        // $produitImage = $file->storeAs('public/images/produits', $fileName);
+        $file = $request->file('image');
+        $fileName = time().'.png';
+        $produitImage = $file->storeAs('images/produits', $fileName, 'public');
 
         $newAlbum = new Album();
         $newAlbum->produit_id = $request->produit_id;
-        $newAlbum->image = $request->image;
+        $newAlbum->image = $produitImage;
 
         $newAlbum->save();
 
-        return response(['success' => 'Enregistrement effectué avec succés']);
+        return $this->responseWithSuccess('Enregistrement effectue avec succes');
     }
 
     /**
@@ -47,7 +52,7 @@ class AlbumController extends Controller
     {
         $album = Album::where('id', $id)->first();
         if (!$album) {
-            return response(['error' => 'Cet album n\'existe pas']);
+            return $this->responseWithError('Cet album n\'existe pas');
         }
         return $album;
     }
@@ -59,30 +64,29 @@ class AlbumController extends Controller
     {
         $request->validate([
             'produit_id' => 'required',
-            'image' => 'required',
         ]);
         
         $album = Album::where('id', $id)->first();
 
         if (!$album) {
-            return response(['error' => 'Cet album n\'existe pas']);
+            return $this->responseWithError('Cet album n\'existe pas');
         }
 
-        // if ($album->image != null && Storage::exists($album->image)) {
-        //     Storage::delete($album->image);
-        // }
-
-
-        // $file = $request->file('image');
-        // $fileName = time().'.png';
-        // $albumImage = $file->storeAs('public/images/produits', $fileName);
+        $image = $request->file('image');
+        
+        if ($image != null) {
+            if ($album->image != null && Storage::exists('public/'.$album->image)) {
+                Storage::delete('public/'.$album->image);
+            }
+            $fileName = time().'.png';
+            $albumImage = $image->storeAs('images/produitsAlbum', $fileName, 'public');
+            $album->image = $albumImage;
+        }
 
         $album->produit_id = $request->produit_id;
-        $album->image = $request->image;
-
         $album->update();
 
-        return response(['success' => 'Modification effectué avec succés']);
+        return $this->responseWithSuccess('Modification effectue avec succes');
     }
 
     /**
@@ -92,9 +96,9 @@ class AlbumController extends Controller
     {
         $album = Album::where('id', $id)->first();
         if (!$album) {
-            return response(['error' => 'Cet album n\'existe pas']);
+            return $this->responseWithError('Cet album n\'existe pas');
         }
         $album->delete();
-        return response(['success' => 'Suppression effectué avec succés']);
+        return $this->responseWithSuccess('Suppression effectue avec succes');
     }
 }

@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Panier;
+use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Trait\apiResponse;
 
 class AuthController extends Controller
 {
+    use apiResponse;
     /**
      * Create a new AuthController instance.
      *
@@ -13,7 +18,7 @@ class AuthController extends Controller
      */
     // public function __construct()
     // {
-    //    // $this->middleware('auth:api', ['except' => ['login']]);
+    //    // $this->ware('auth:api', ['except' => ['login']]);
     // }
 
     /**
@@ -21,14 +26,42 @@ class AuthController extends Controller
      *
      * @return \Illuminate\Http\JsonResponse
      */
-    public function login()
+    public function login(){
+        return response(['connexion' => 'veuillez vous connecter']);
+    }
+    public function login_store()
     {
         $credentials = request(['email', 'password']);
         if (! $token = Auth::attempt($credentials)) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
-
+        
         return $this->respondWithToken($token);
+    }
+
+    public function register(Request $request)
+    {
+        $request->validate([
+            'nom' => 'required',
+            'prenom' => 'required',
+            'telephone' => 'required|unique:users',
+            'email' => 'required|unique:users|email',
+            'password' => 'required|confirmed',
+        ]);
+
+        $user = new User();
+        $user->nom = $request->nom;
+        $user->prenom = $request->prenom;
+        $user->telephone = $request->telephone;
+        $user->email = $request->email;
+        $user->password = bcrypt($request->password);
+        $user->save();
+
+        $panier = new Panier();
+        $panier->user_id = $user->id;
+        $panier->save();
+
+        return $this->responseWithSuccess('Enregistrement effectue avec succés', $user);
     }
 
     /**
@@ -75,7 +108,7 @@ class AuthController extends Controller
         return response()->json([
             'access_token' => $token,
             'token_type' => 'bearer',
-            'expires_in' => Auth::factory()->getTTL() * 60
+            'expires_in' => Auth::factory()->getTTL()
         ]);
     }
 }

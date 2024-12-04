@@ -9,6 +9,6 @@ class Album extends Model
 {
     use HasFactory;
     public function produit(){
-        return $this->belongsTo(Album::class);
+        return $this->belongsTo(Produit::class);
     }
 }

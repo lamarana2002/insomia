@@ -3,17 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Models\Categorie;
+use App\Trait\apiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class CategorieController extends Controller
 {
+    use apiResponse;
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $categories = Categorie::with('produit')->orderBy('categorie', 'asc')->get();
+        $categories = Categorie::orderBy('categorie', 'asc')->get();
+        // return $categories->asset('storage/')
+        foreach ($categories as $key=>$value) {
+            $categories[$key]->image = asset('storage/' . $categories[$key]->image);
+        }
         return $categories;
     }
 
@@ -29,13 +35,13 @@ class CategorieController extends Controller
 
         $file = $request->file('image');
         $imgName = time().'.png';
-        $image = $file->storeAs('public/images/categories', $imgName);
+        $image = $file->storeAs('images/categories', $imgName, 'public');
 
         $newCategorie = new Categorie();
         $newCategorie->categorie = $request->categorie;
         $newCategorie->image = $image;
         $newCategorie->save();
-        return response(['success' => 'Enregistrement effectué avec succés']);
+        return $this->responseWithSuccess('Enregistrement effectue avec succes');
 
     }
 
@@ -46,7 +52,7 @@ class CategorieController extends Controller
     {
         $categorie = Categorie::where('id', $id)->first();
         if (!$categorie) {
-           return response(['error' => 'Cette categorie n\'existe pas']);
+            return $this->responseWithError('Cette categorie n\'existe pas');
         }
         return response($categorie);
     }
@@ -56,30 +62,30 @@ class CategorieController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $categorie = Categorie::where('id', $id)->first();
-        return response($categorie);
         $request->validate([
             'categorie' => 'required',
-            'image' => 'required|image'
         ]);
-
-
-        if (!$categorie) {
-            return response(['error' => 'Cette categorie n\'existe pas']);
+        $cat = Categorie::where('id', $id)->first();
+        
+        if (!$cat) {
+            return $this->responseWithError('Cette categorie n\'existe pas');
+        }
+        $image = $request->file('image');
+        
+        if ($image != null) {
+            if ($cat->image != null && Storage::exists('public/'.$cat->image)) {
+                Storage::delete('public/'.$cat->image);
+            }
+            $file = $request->file('image');
+            $imgName = time().'.png';
+            $image = $file->storeAs('images/categories', $imgName, 'public');
+            $cat->image = $image;
         }
 
-        if ($categorie->image != null && Storage::exists($categorie->image)) {
-            Storage::delete($categorie->image);
-        }
 
-        $file = $request->file('image');
-        $imgName = time().'.png';
-        $image = $file->storeAs('public/images/categories', $imgName);
-
-        $categorie->categorie = $request->categorie;
-        $categorie->image = $image;
-        $categorie->update();
-        return response(['success' => 'Modification effectué avec succés']);
+        $cat->categorie = $request->categorie;
+        $cat->save();
+        return $this->responseWithSuccess('Modification effectue avec succes');
     }
 
     /**
@@ -88,7 +94,10 @@ class CategorieController extends Controller
     public function destroy(string $id)
     {
         $categorie = Categorie::where('id',$id)->first();
+        if (!$categorie) {
+            return $this->responseWithError('Cette categorie n\'existe pas');
+        }
         $categorie->delete();
-        return response(['success' => 'Suppression effectué avec succés']);
+        return $this->responseWithSuccess('Suppression effectue avec succes');
     }
 }

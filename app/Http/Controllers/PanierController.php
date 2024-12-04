@@ -7,7 +7,6 @@ use App\Models\Panier_item;
 use App\Models\Produit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use App\Trait\apiResponse;
 
 class PanierController extends Controller
@@ -50,47 +49,53 @@ class PanierController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        // return 'panier update';
         $produit = Produit::where('id', $id)->first();
         if (!$produit) {
             return $this->responseWithError('Ce produit n\'existe pas');
-            // response(['success' => 'Ce produit n\'existe pas']);
         }
         $panierId = Panier::where('user_id', Auth::user()->id)->first();
 
         // $panier = Panier_item::with('panier')->where('user_id', Auth::user()->id)->first();
         $produitExistInPanier = Panier_item::where('produit_id', $produit->id)->where('panier_id', $panierId->id)->first();
 
-        $panier = Panier_item::updateOrCreate(
-            ['panier_id' => $panierId->id,
-            'produit_id' => $produit->id],
-           [ 'quantite' => DB::raw('quantite + 1'),
-            'montant' => DB::raw('quantite * $produit->prix')],
-        );
+        // $panier = Panier_item::updateOrCreate(
+        //     ['panier_id' => $panierId->id,
+        //     'produit_id' => $produit->id],
+        //    [ 'quantite' => DB::raw('quantite + 1'),
+        //     'montant' => DB::raw('quantite * $produit->prix')],
+        // );
 
-        if ($panier) {
-            return $this->responseWithSuccess('Ce produit n\'existe pas', $panier);
-            // return response(['success' => 'Enregistrement effectué avec succés']);
+        // if ($panier) {
+        //     return $this->responseWithSuccess('Ce produit n\'existe pas', $panier);
+        //     // return response(['success' => 'Enregistrement effectué avec succés']);
+        // }
+
+        if(!$produitExistInPanier){
+            // return Auth::user();
+            $newPanier = new Panier_item();
+            $newPanier->panier_id = $panierId->id;
+            $newPanier->produit_id = $produit->id;
+            $newPanier->quantite = 1;
+            $newPanier->montant = $produit->prix;
+            $newPanier->save();
+            $produit->quantite_stock --;
+            $produit->update();
+            return $this->responseWithSuccess('Enregistrement effectue avec succes');
+        }
+        // return response(['existe']);
+
+        if ($produit->quantite_stock < 1 ) {
+
+            return $this->availableStock();
         }
 
-        // if(!$produitExistInPanier){
-        //     // return Auth::user();
-        //     $newPanier = new Panier_item();
-        //     $newPanier->panier_id = $panierId->id;
-        //     $newPanier->produit_id = $produit->id;
-        //     $newPanier->quantite = 1;
-        //     $newPanier->montant = $produit->prix;
-        //     $newPanier->save();
-        //     return response(['success' => 'Enregistrement effectué avec succés']);
-        // }
-        // // return response(['existe']);
+        $produitExistInPanier->quantite ++;
+        $produitExistInPanier->montant =$produitExistInPanier->quantite * $produit->prix;
+        $produitExistInPanier->update();
 
-        // $produitExistInPanier = Panier_item::with('panier')->where('produit_id', $produit->id)->first();
-
-        // $produitExistInPanier->quantite += 1;
-        // $produitExistInPanier->montant =$produitExistInPanier->quantite * $produit->prix;
-        // $produitExistInPanier->save();
-        // return response(['success' => 'Modification effectué avec succés']);
+        $produit->quantite_stock --;
+        $produit->update();
+        return $this->responseWithSuccess('Modification effectue avec succes');
     }
 
     /**
@@ -99,10 +104,55 @@ class PanierController extends Controller
     public function destroy(string $id)
     {
         $panier_item = Panier_item::where('id', $id)->first();
+        $produit = Produit::where('id', $panier_item->produit_id)->first();
         if (!$panier_item) {
-            return response(['error' => 'Ce article n\'existe pas dans le panier']);
+            return $this->responseWithError('Ce panier item n\'existe pas ');
         }
+        $produit->quantite_stock = $produit->quantite_stock + $panier_item->quantite;
+        $produit->update();
         $panier_item->delete();
-        return response(['success' => 'Suppression effectué avec succés']);
+        return $this->responseWithSuccess('Suppression effectue avec succes');
+    }
+    public function incrementation($id)
+    {
+
+        $userId = Auth::user()->id;
+        $userPanier = Panier::where('user_id', $userId)->first();
+        $panierItem = Panier_item::where('panier_id', $userPanier->id)->where('produit_id', $id)->first();
+
+        $produit = Produit::where('id', $id)->first();
+        if ($produit->quantite_stock < 1) {
+            return $this->availableStock();
+        }
+
+        $panierItem->quantite++;
+        $panierItem->montant =$panierItem->quantite * $produit->prix;
+        $panierItem->update();
+
+        $produit->quantite_stock --;
+        $produit->update();
+    }
+    public function decrementation($id)
+    {
+        $userId = Auth::user()->id;
+        $userPanier = Panier::where('user_id', $userId)->first();
+        $panierItem = Panier_item::where('panier_id', $userPanier->id)->where('produit_id', $id)->first();
+
+        $produit = Produit::where('id', $id)->first();
+        if ($panierItem->quantite > 1) {
+            $panierItem->quantite--;
+            $panierItem->montant =$panierItem->quantite * $produit->prix;
+            $panierItem->update();
+
+            $produit->quantite_stock ++;
+            $produit->update();
+        }
+        if ($panierItem->quantite == 1) {
+            $panierItem->delete();
+
+            $produit->quantite_stock += 1;
+            $produit->update();
+        }
+        
     }
 }
